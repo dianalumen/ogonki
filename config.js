@@ -1,4 +1,4 @@
 window.OGONKI_CONFIG = {
-  supabaseUrl: 'https://uwauljvbcepjraayhyee.supabase.co',
-  supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3YXVsanZiY2VwanJhYXloeWVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5MzkyOTMsImV4cCI6MjEwODUxNTI5M30.8ZPVsXEzTHCGCJwmNWs2nq9xKdY2nxGTJyJpgGdnrls'
+  supabaseUrl: 'https://TWOJ-PROJEKT.supabase.co',
+  supabaseAnonKey: 'TWOJ_KLUCZ_ANON'
 };

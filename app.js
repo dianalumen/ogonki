@@ -40,7 +40,7 @@
   const S = {
     phase: 'loading', authStep: 'login', authEmail: '', authBusy: false, authErr: '', loadErr: '',
     user: null, rats: [], weights: [], entries: [], treatments: [], doses: [], visits: [], members: [],
-    stack: [{ name: 'start' }], sheet: null, confirm: null, histAll: false, pending: false, introStep: 0
+    stack: [{ name: 'start' }], sheet: null, confirm: null, histAll: false, pending: false, introStep: 0, wFilter: 'all'
   };
   const INTRO_KEY = 'ogonki-intro-seen';
   const introSeen = () => { try { return localStorage.getItem(INTRO_KEY) === '1'; } catch (e) { return false; } };
@@ -51,7 +51,10 @@
   // ---------- Dane pomocnicze ----------
   const rat = (id) => S.rats.find((r) => r.id === id);
   const tr = (id) => S.treatments.find((t) => t.id === id);
-  const weightsOf = (id) => S.weights.filter((w) => w.rat_id === id).map((w) => [w.date, w.grams]).sort((a, b) => a[0].localeCompare(b[0]));
+  const weightsOf = (id) => S.weights.filter((w) => w.rat_id === id).map((w) => [w.date, w.grams, (w.time || '').slice(0, 5)])
+    .sort((a, b) => a[0].localeCompare(b[0]) || a[2].localeCompare(b[2]));
+  const partOfDay = (hhmm) => { if (!hhmm) return ''; const h = Number(hhmm.slice(0, 2)); return h < 14 ? 'rano' : 'wieczorem'; };
+  const nowHHMM = () => { const n = new Date(); return String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'); };
   const lastW = (id) => { const w = weightsOf(id); return w.length ? w[w.length - 1][1] : null; };
   const trend = (id) => {
     const w = weightsOf(id); if (w.length < 3) return null;
@@ -264,10 +267,14 @@
       if (!r) return screens.start();
       const ts = S.treatments.filter((x) => x.rat_id === r.id && active(x));
       const w = weightsOf(r.id);
-      const delta = w.length > 1 ? w[w.length - 1][1] - w[0][1] : null;
+      const hasTimes = w.some((x) => x[2]);
+      const wf = !hasTimes || S.wFilter === 'all' ? w : w.filter((x) => x[2] && (S.wFilter === 'am' ? x[2] < '14:00' : x[2] >= '14:00'));
+      const win = wf.slice(-20);
+      const delta = win.length > 1 ? win[win.length - 1][1] - win[0][1] : null;
+      const fBtn = (v, label) => `<button data-act="wfilter" data-v="${v}" aria-pressed="${S.wFilter === v}">${label}</button>`;
       const visits = S.visits.filter((v) => v.rat_id === r.id && v.date >= iso(T()));
       const hist = S.entries.filter((e) => e.rat_id === r.id).map((e) => ({ date: e.date, text: e.text, at: e.created_at || '' }))
-        .concat(w.map((x) => ({ date: x[0], text: x[1] + ' g', at: '' })))
+        .concat(w.map((x) => ({ date: x[0], text: x[1] + ' g' + (x[2] ? ' · ' + partOfDay(x[2]) + ', ' + x[2] : ''), at: x[2] ? x[0] + 'T' + x[2] : '' })))
         .sort((a, b) => b.date.localeCompare(a.date) || b.at.localeCompare(a.at));
       const shown = S.histAll ? hist : hist.slice(0, 8);
       const age = ageOf(r.born);
@@ -276,9 +283,10 @@
         <div class="hero">${avatar(r, 'lg')}<div style="display:flex;flex-direction:column;gap:2px;min-width:0">
           <h1 class="title small">${esc(r.name)}</h1>${age ? `<span class="sub">${age}</span>` : ''}</div></div>
         ${w.length ? `<section style="gap:12px">
-          <div style="display:flex;align-items:baseline;gap:10px"><span class="big num">${lastW(r.id)} g</span>
-          ${delta ? `<span class="num" style="font-size:15px;font-weight:600;color:${delta < 0 ? 'var(--danger)' : 'var(--muted)'}">${delta > 0 ? '+' : '−'}${Math.abs(delta)} g</span>` : ''}</div>
-          ${chart(w, ts[0])}
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="big num">${wf.length ? wf[wf.length - 1][1] : lastW(r.id)} g</span>
+          ${delta ? `<span class="num" style="font-size:15px;font-weight:600;color:${delta < 0 ? 'var(--danger)' : 'var(--muted)'}">${delta > 0 ? '+' : '−'}${Math.abs(delta)} g</span><span class="sub">od ${short(d(win[0][0]))}</span>` : ''}</div>
+          ${hasTimes ? `<div class="seg three" role="group" aria-label="Pomiary">${fBtn('all', 'Wszystkie')}${fBtn('am', 'Rano')}${fBtn('pm', 'Wieczorem')}</div>` : ''}
+          ${win.length > 1 ? chart(win, ts[0]) : '<p class="sub">Za mało pomiarów o tej porze.</p>'}
         </section>` : `<p class="sub">Brak pomiarów wagi.</p>`}
         ${ts.length || visits.length ? `<section style="border-top:1px solid var(--line)">
           ${ts.map((t) => `<button class="row" data-act="go" data-to="kuracja" data-id="${t.id}" style="flex-direction:column;align-items:stretch;gap:10px;padding:14px 0">
@@ -336,7 +344,7 @@
     waga() {
       return `<div class="screen">
         <div class="topbar"><button class="link" data-act="back">Anuluj</button><button class="link strong" data-act="save-weigh" id="saveW">Zapisz</button></div>
-        <h1 class="title small">Ważenie</h1>
+        <div style="display:flex;flex-direction:column;gap:4px"><h1 class="title small">Ważenie</h1><span class="lead">Dziś, ${nowHHMM()} · ${partOfDay(nowHHMM())}</span></div>
         <section>${S.rats.map((r) => { const lw = lastW(r.id); return `<div class="row static">
           ${avatar(r)}
           <span class="row-main"><label class="name" for="w-${r.id}">${esc(r.name)}</label>
@@ -393,7 +401,7 @@
   };
 
   function chart(all, t) {
-    const w = all.slice(-12);
+    const w = all.slice(-20);
     if (w.length < 2) return '';
     const W = 350, top = 8, bottom = 104;
     const vals = w.map((x) => x[1]);
@@ -648,6 +656,7 @@
       case 'back': back(); if (S.pending) render(); break;
       case 'dose': toggleDose(tr(el.dataset.t), Number(el.dataset.i)); break;
       case 'hist-all': S.histAll = true; render(); break;
+      case 'wfilter': S.wFilter = el.dataset.v; render(); break;
       case 'confirm': S.confirm = el.dataset.key; render(); break;
       case 'confirm-cancel': S.confirm = null; render(); break;
       case 'retry': S.phase = 'loading'; render(); sb.auth.getSession().then(({ data }) => enter(data.session)); break;
@@ -708,12 +717,12 @@
         const rows = [];
         app.querySelectorAll('.w-in input').forEach((inp) => {
           const v = parseInt(inp.value, 10);
-          if (!isNaN(v) && v >= 10) rows.push({ rat_id: inp.dataset.rat, date: iso(T()), grams: v });
+          if (!isNaN(v) && v >= 10) rows.push({ rat_id: inp.dataset.rat, date: iso(T()), time: nowHHMM(), grams: v });
         });
         if (!rows.length) { back(); break; }
         el.disabled = true;
         try {
-          ok(await sb.from('weights').upsert(rows, { onConflict: 'rat_id,date' }));
+          ok(await sb.from('weights').insert(rows));
           await load();
           S.stack.pop(); anim = 'enter-back'; render();
           toast(rows.length === 1 ? 'Zapisano 1 wagę' : 'Zapisano ' + rows.length + (rows.length < 5 ? ' wagi' : ' wag'));
