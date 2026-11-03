@@ -1,4 +1,4 @@
-const CACHE = 'ogonki-v4';
+const CACHE = 'ogonki-v5';
 const SHELL = [
   './', './index.html', './styles.css', './app.js', './config.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon.png',
